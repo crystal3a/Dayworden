@@ -6,7 +6,11 @@ import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.text.method.ScrollingMovementMethod;
@@ -29,17 +33,33 @@ import org.json.JSONObject;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 
+
 public class MainActivity extends AppCompatActivity {
+
+
+    public interface TextToSpeechCallback {
+        void onStart();
+        void onCompleted();
+        void onError();
+    }
+
+
 
     private String mytag ="Dayworden";
     private TextView texttitle;
     private TextView textcontent;
+    private Map<String, TextToSpeechCallback> mTtsCallbacks = new HashMap<>();
+    private TextToSpeech mTextToSpeech;
+    private int mTtsQueueMode = TextToSpeech.QUEUE_FLUSH;
+    private Context mContext;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,7 +70,8 @@ public class MainActivity extends AppCompatActivity {
         texttitle.setMovementMethod(new ScrollingMovementMethod());
         textcontent = (TextView) findViewById(R.id.textcontent);
         textcontent.setMovementMethod(new ScrollingMovementMethod());
-
+        mContext= this.getApplicationContext();
+        initTts(mContext);
     }
 
     @Override
@@ -160,6 +181,8 @@ public class MainActivity extends AppCompatActivity {
                 {
                     Log.d("play url",resp[0]);
                     playsound(resp[0]);
+
+
                 }
             }
         }, new Response.ErrorListener() {
@@ -188,7 +211,33 @@ public class MainActivity extends AppCompatActivity {
                     Log.i("Completion Listener","onCompletion");
                     mp.stop();
                     mp.release();
-                    //loadtextview(result);
+                    String contentstr = StringFilter(textcontent.getText().toString());
+                    Log.i(mytag,contentstr);
+                    //say(contentstr);
+
+                    say(contentstr, new TextToSpeechCallback() {
+                        @Override
+                        public void onStart() {
+                            Log.i("speech", "speech started");
+                        }
+
+                        @Override
+                        public void onCompleted() {
+                            Log.i("speech", "speech completed");
+                            try {
+                                Thread.sleep(2000);
+                            } catch (InterruptedException e) {
+                                // TODO Auto-generated catch block
+                                e.printStackTrace();
+                            }
+                            finish();
+                        }
+
+                        @Override
+                        public void onError() {
+                            Log.i("speech", "speech error");
+                        }
+                    });
                 }
             });
         }
@@ -354,38 +403,142 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    private void initTts(Context context) {
+        if (mTextToSpeech == null) {
+            mTextToSpeech = new TextToSpeech(context, mTttsInitListener);
+            mTextToSpeech.setOnUtteranceProgressListener(mTtsProgressListener);
+            mTextToSpeech.setLanguage(Locale.TRADITIONAL_CHINESE);
+            //mTextToSpeech.setPitch(mTtsPitch);
+            //mTextToSpeech.setSpeechRate(mTtsRate);
+        }
+    }
 
 
+    private TextToSpeech.OnInitListener mTttsInitListener = new TextToSpeech.OnInitListener() {
+        @Override
+        public void onInit(int status) {
+            switch (status) {
+                case TextToSpeech.SUCCESS:
+                    Log.i(mytag, "TextToSpeech engine successfully started");
+                    break;
+
+                case TextToSpeech.ERROR:
+                    Log.e(mytag, "Error while initializing TextToSpeech engine!");
+                    break;
+
+                default:
+                    Log.e(mytag, "Unknown TextToSpeech status: " + status);
+                    break;
+            }
+        }
+    };
+
+    private UtteranceProgressListener mTtsProgressListener = new UtteranceProgressListener() {
+        @Override
+        public void onStart(final String utteranceId) {
+            final TextToSpeechCallback callback = mTtsCallbacks.get(utteranceId);
+
+            if (callback != null) {
+                new Handler(mContext.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onStart();
+                    }
+                });
+            }
+        }
+
+        @Override
+        public void onDone(final String utteranceId) {
+            final TextToSpeechCallback callback = mTtsCallbacks.get(utteranceId);
+
+            if (callback != null) {
+                new Handler(mContext.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onCompleted();
+                        mTtsCallbacks.remove(utteranceId);
+                    }
+                });
+            }
+        }
+
+        @Override
+        public void onError(final String utteranceId) {
+            final TextToSpeechCallback callback = mTtsCallbacks.get(utteranceId);
+
+            if (callback != null) {
+                new Handler(mContext.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError();
+                        mTtsCallbacks.remove(utteranceId);
+                    }
+                });
+            }
+        }
+    };
 
 
+    /**
+     * Uses text to speech to transform a written message into a sound.
+     * @param message message to play
+     */
+    public void say(String message) {
+        say(message, null);
+    }
 
+    /**
+     * Uses text to speech to transform a written message into a sound.
+     * @param message message to play
+     * @param callback callback which will receive progress status of the operation
+     */
+    private void say(String message, TextToSpeechCallback callback) {
 
+        String utteranceId = UUID.randomUUID().toString();
 
+        if (callback != null) {
+            mTtsCallbacks.put(utteranceId, callback);
+        }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            mTextToSpeech.speak(message, mTtsQueueMode, null, utteranceId);
+        } else {
+            HashMap<String, String> params = new HashMap<>();
+            params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId);
+            mTextToSpeech.speak(message, mTtsQueueMode, params);
+        }
+    }
 
-
-
-
-
-
+    /**
+     * Stops text to speech.
+     */
+    private void stopTextToSpeech() {
+        if (mTextToSpeech != null) {
+            mTextToSpeech.stop();
+        }
+    }
 
 
     @Override
     protected void onPause() {
         super.onPause();
         Log.d(mytag, "onPause");
+        //stopTextToSpeech();
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         Log.d(mytag, "onStop");
+        stopTextToSpeech();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         Log.d(mytag, "onDestroy");
+        stopTextToSpeech();
         //android.os.Process.killProcess(android.os.Process.myPid());
     }
 
