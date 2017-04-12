@@ -11,6 +11,25 @@ import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.widget.TextView;
 
+import com.android.volley.Request;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.VolleyLog;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -37,6 +56,8 @@ public class MainActivity extends AppCompatActivity {
 
         if (isConnected()) {
             Log.d("NetworkConnection", "Network Connected.");
+            //顯示每日一字
+            display();
         }else{
             Log.d("NetworkConnection", "No network connection available.");
             //告訴使用者網路無法使用
@@ -56,6 +77,57 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private void display(){
+        String url= getqueryurl();
+
+        JsonObjectRequest jsonObjReq = new JsonObjectRequest(Request.Method.GET,url, null,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d(mytag, response.toString());
+                        String res = jsonparser(response);
+                        String titlestr = res.split("_____")[0].trim();
+                        String contentstr = res.split("_____")[1].trim();
+                        texttitle.setText(titlestr);
+                        textcontent.setText(contentstr);
+
+                        //"查無此字"
+                        if(res=="")
+                        {
+                            //Speech.getInstance().setLocale(Locale.TRADITIONAL_CHINESE);
+                            //Speech.getInstance().say("查無此字");
+                        }
+                        else
+                        {
+                            //DIC0001
+                            //Speech.getInstance().setLocale(Locale.TRADITIONAL_CHINESE);
+                            //res=StringFilter(res);
+                            //Speech.getInstance().say(res);
+                        }
+                    }
+                }, new Response.ErrorListener() {
+
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                VolleyLog.d(mytag, "Error: {0}" , error.getMessage());
+            }
+        });
+        Volley.newRequestQueue(getApplicationContext()).add(jsonObjReq);
+    }
+
+    private String getqueryurl() {
+        //英文每日一字授權內容ID
+        String ContentID = "DOW0017";
+        //目前時間
+        Date today = new Date();
+        //設定日期格式
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
+        //進行轉換
+        String dateString = sdf.format(today);
+        QueryRequest qrreq = new QueryRequest();
+        return qrreq.QueryJson(dateString,ContentID);
+    }
+
     private boolean isConnected(){
         ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo networkInfo = cm.getActiveNetworkInfo();
@@ -64,6 +136,175 @@ public class MainActivity extends AppCompatActivity {
         }
         return false;
     }
+
+
+    private String jsonparser(JSONObject response)
+    {
+        String qr_title="";
+        String qr_result="";
+        String qrword = "test";
+        //qr_result = qrword + "\n 解釋 \n";
+        Map<String, String> interpretation_map = new HashMap<>();
+        try{
+            Object entry_temp = response.getJSONObject("root").get("entry");
+            Log.d("Entry",qrword+"取到entry");
+            Object fedword_xml_temp;
+            //JSONArray fedword_xml;
+            if(entry_temp instanceof JSONArray){
+                JSONArray entry = (JSONArray)entry_temp;
+                fedword_xml_temp = entry.getJSONObject(0).get("fedword-xml"); //有複數entry只取第一個
+            }
+            else {
+                JSONObject entry = (JSONObject)entry_temp;
+                fedword_xml_temp = entry.get("fedword-xml");
+            }
+            Log.d("fedword-xml",qrword+"取到fedword-xml");
+            if(fedword_xml_temp instanceof JSONArray){
+                JSONArray fedword_xml = (JSONArray) fedword_xml_temp;
+                for (int i = 0; i < fedword_xml.length(); i++){
+                    JSONObject f = fedword_xml.getJSONObject(i);
+                    String fedword_xml_att = f.getString("@att");
+                    if(fedword_xml_att.indexOf("interpretation-ref-") != -1) {
+                        String def_tmp = "";
+                        Object interpretation_ref_temp = f.getJSONObject("row").get("row-value");
+                        if(interpretation_ref_temp instanceof JSONObject){
+                            def_tmp = (f.getJSONObject("row").getJSONObject("row-value").isNull("#text")) ?
+                                    f.getJSONObject("row").getJSONObject("row-value").getString("#cdata-section") :
+                                    f.getJSONObject("row").getJSONObject("row-value").getString("#text");
+                            interpretation_map.put(fedword_xml_att, def_tmp);
+                        } else{
+                            JSONArray row = f.getJSONObject("row").getJSONArray("row-value");
+                            for (int j = 0; j < row.length(); j++) {
+                                if (row.getJSONObject(j).getString("@att").equals("def")) {
+                                    def_tmp = (row.getJSONObject(j).isNull("#text")) ?
+                                            row.getJSONObject(j).getString("#cdata-section") :
+                                            row.getJSONObject(j).getString("#text");
+                                    interpretation_map.put(fedword_xml_att, def_tmp);
+                                }
+                            }
+
+                        }
+                        Log.d("解釋內容", def_tmp);
+                    }
+                }
+                for (int i = 0; i < fedword_xml.length(); i++){
+                    JSONObject f = fedword_xml.getJSONObject(i);
+                    String fedword_xml_att = f.getString("@att");
+
+                    if(fedword_xml_att.equals("base-form")){
+                        Object row_temp = f.get("row");
+                        JSONObject row = (JSONObject) row_temp;
+                        Object row_value_tmp = row.get("row-value");
+                        JSONArray row_value = (JSONArray) row_value_tmp;
+                        for (int k = 0; k < row_value.length(); k++){
+                            JSONObject row_value_iter = row_value.getJSONObject(k);
+                            String row_value_iter_att = row_value_iter.getString("@att");
+                            if (row_value_iter_att.equals("entryword")){
+                                qr_title = (row_value_iter.getString("#text") + "\n");
+                                break;
+                            }
+                        }
+                    }
+                    else if(fedword_xml_att.equals("interpretation")){
+                        Object row_temp = f.get("row");
+                        if(row_temp instanceof JSONArray){
+                            JSONArray row = (JSONArray) row_temp;
+                            for (int j = 0;j < row.length(); j++){
+                                JSONObject row_iter = row.getJSONObject(j);
+                                Object row_value_tmp = row_iter.get("row-value");
+                                if(row_value_tmp instanceof JSONObject){
+                                    JSONObject row_value = (JSONObject) row_value_tmp;
+                                    String interpretation_id = row_value.getString("#text");
+                                    qr_result += (interpretation_map.get(interpretation_id) + "\n");
+                                }
+                                else{
+                                    JSONArray row_value = (JSONArray) row_value_tmp;
+                                    for (int k = 0; k < row_value.length(); k++){
+                                        JSONObject row_value_iter = row_value.getJSONObject(k);
+                                        String row_value_iter_att = row_value_iter.getString("@att");
+                                        if (row_value_iter_att.equals("seg")){
+                                            qr_result += (row_value_iter.getString("#text") + "\n");
+                                        }
+                                        else if(row_value_iter_att.equals("id")){
+                                            String interpretation_id = row_value_iter.getString("#text");
+                                            qr_result += (interpretation_map.get(interpretation_id)+ "\n");
+                                        }
+                                    }
+
+                                }
+                            }
+                        }
+                        else{
+                            JSONObject row = (JSONObject) row_temp;
+                            Object row_value_tmp = row.get("row-value");
+                            if (row_value_tmp instanceof JSONObject){
+                                JSONObject row_value = (JSONObject) row_value_tmp;
+                                String interpretation_id = row_value.getString("#text");
+                                qr_result += (interpretation_map.get(interpretation_id)+ "\n");
+                            }
+                            else{
+                                JSONArray row_value = (JSONArray) row_value_tmp;
+                                for(int k = 0; k < row_value.length();k++){
+                                    JSONObject row_value_iter = row_value.getJSONObject(k);
+                                    String row_value_iter_att = row_value_iter.getString("@att");
+                                    if (row_value_iter_att.equals("seg")){
+                                        qr_result += (row_value_iter.getString("#text") + "\n");
+                                    }
+                                    else if(row_value_iter_att.equals("id")){
+                                        String interpretation_id = row_value_iter.getString("#text");
+                                        qr_result += (interpretation_map.get(interpretation_id)+ "\n");
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+            /*
+            else{
+                JSONObject fedword_xml = (JSONObject) fedword_xml_temp;
+                qr_result += fedword_xml.getJSONObject("row").getJSONObject("row-value").getString("#text");
+            }
+            */
+
+
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        return qr_title + "_____" + qr_result;
+
+    }
+
+
+    public   static  String StringFilter(String   str) throws PatternSyntaxException {
+        // 只允许字母和数字
+        // String   regEx  =  "[^a-zA-Z0-9]";
+        // 清除掉所有特殊字符
+        String regEx="[`~!@#$%^&*()+=|{}':'\\[\\].<>/~！@#￥%……&*（）——+|{}【】‘：”“’a-zA-Z]";
+        Pattern   p   =   Pattern.compile(regEx);
+        Matcher m   =   p.matcher(str);
+        return   m.replaceAll("").trim();
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     @Override
     protected void onPause() {
