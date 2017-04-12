@@ -2,8 +2,10 @@ package com.besta.bestaword.dayworden;
 
 import android.content.Context;
 import android.content.DialogInterface;
+import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -12,10 +14,12 @@ import android.util.Log;
 import android.widget.TextView;
 
 import com.android.volley.Request;
+import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.VolleyLog;
 import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
 import org.json.JSONArray;
@@ -77,6 +81,15 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private boolean isConnected(){
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo = cm.getActiveNetworkInfo();
+        if (networkInfo != null && networkInfo.isConnected()) {
+            return true;
+        }
+        return false;
+    }
+
     private void display(){
         String url= getqueryurl();
 
@@ -90,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
                         String contentstr = res.split("_____")[1].trim();
                         texttitle.setText(titlestr);
                         textcontent.setText(contentstr);
+                        saytext(titlestr);
 
                         //"查無此字"
                         if(res=="")
@@ -128,14 +142,64 @@ public class MainActivity extends AppCompatActivity {
         return qrreq.QueryJson(dateString,ContentID);
     }
 
-    private boolean isConnected(){
-        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo networkInfo = cm.getActiveNetworkInfo();
-        if (networkInfo != null && networkInfo.isConnected()) {
-            return true;
-        }
-        return false;
+    private void saytext(String result)
+    {
+        // Instantiate the RequestQueue.
+        RequestQueue queue = Volley.newRequestQueue(this);
+        QueryRequest qrreq = new QueryRequest();
+        String ContentID = "VOC0012";
+        String url = qrreq.QueryHtml(result,ContentID);//VOC0012
+        // Request a string response from the provided URL.
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url, new Response.Listener<String>()
+        {
+            @Override
+            public void onResponse(String response) {
+                Log.i("playsound", "onResponse");
+                String [] resp = response.split("\\n");
+                if(resp.length >0 )//length of array
+                {
+                    Log.d("play url",resp[0]);
+                    playsound(resp[0]);
+                }
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                VolleyLog.d("saytext", "Error: " + error.getMessage());
+            }
+        });
+        // Add the request to the RequestQueue.
+        queue.add(stringRequest);
+
+
+
     }
+
+    private void playsound(String url)
+    {
+        MediaPlayer mp = new MediaPlayer();
+        try
+        {
+            mp.setDataSource(getApplicationContext(), Uri.parse(url));
+            mp.prepare();
+            mp.start();
+            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                public void onCompletion(MediaPlayer mp) {
+                    Log.i("Completion Listener","onCompletion");
+                    mp.stop();
+                    mp.release();
+                    //loadtextview(result);
+                }
+            });
+        }
+        catch(Exception e)
+        {
+            Log.d("playsoundException",e.getMessage());
+            //loadtextview(result);
+        }
+    }
+
+
 
 
     private String jsonparser(JSONObject response)
