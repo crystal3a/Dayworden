@@ -52,9 +52,6 @@ public class MainActivity extends AppCompatActivity {
         void onCompleted();
         void onError();
     }
-
-
-
     private String mytag ="Dayworden";
     private TextView texttitle;
     private TextView textcontent;
@@ -63,6 +60,9 @@ public class MainActivity extends AppCompatActivity {
     private int mTtsQueueMode = TextToSpeech.QUEUE_FLUSH;
     private Context mContext;
     private RequestQueue queue;
+
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -215,9 +215,13 @@ public class MainActivity extends AppCompatActivity {
             mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 public void onCompletion(MediaPlayer mp) {
                     Log.i("Completion Listener","onCompletion");
-                    mp.stop();
-                    mp.release();
-                    String contentstr = StringFilter(textcontent.getText().toString());
+                    if(mp!=null) {
+                        if(mp.isPlaying())
+                            mp.stop();
+                        mp.reset();
+                        mp.release();
+                        mp=null;
+                    }                    String contentstr = StringFilter(textcontent.getText().toString());
                     Log.i(mytag,contentstr);
 
                     say(contentstr, new TextToSpeechCallback() {
@@ -397,7 +401,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    public   static  String StringFilter(String   str) throws PatternSyntaxException {
+    private static String StringFilter(String   str) throws PatternSyntaxException {
         // 只允许字母和数字
         // String   regEx  =  "[^a-zA-Z0-9]";
         // 清除掉所有特殊字符
@@ -408,13 +412,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    public void initTts(Context context) {
+    private void initTts(Context context) {
         if (mTextToSpeech == null) {
             mTextToSpeech = new TextToSpeech(context, mTttsInitListener);
             mTextToSpeech.setOnUtteranceProgressListener(mTtsProgressListener);
             mTextToSpeech.setLanguage(Locale.TRADITIONAL_CHINESE);
             //mTextToSpeech.setPitch(mTtsPitch);
             //mTextToSpeech.setSpeechRate(mTtsRate);
+
         }
     }
 
