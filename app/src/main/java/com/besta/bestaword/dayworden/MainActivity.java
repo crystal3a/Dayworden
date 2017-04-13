@@ -72,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
         texttitle.setMovementMethod(new ScrollingMovementMethod());
         textcontent = (TextView) findViewById(R.id.textcontent);
         textcontent.setMovementMethod(new ScrollingMovementMethod());
-        mContext= MainActivity.this;
+        mContext= getApplicationContext();//MainActivity.this;
         initTts(mContext);
     }
 
