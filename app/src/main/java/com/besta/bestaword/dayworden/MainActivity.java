@@ -42,10 +42,12 @@ import java.util.regex.PatternSyntaxException;
 
 
 
+
+
 public class MainActivity extends AppCompatActivity {
 
 
-    public interface TextToSpeechCallback {
+    private interface TextToSpeechCallback {
         void onStart();
         void onCompleted();
         void onError();
@@ -70,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
         texttitle.setMovementMethod(new ScrollingMovementMethod());
         textcontent = (TextView) findViewById(R.id.textcontent);
         textcontent.setMovementMethod(new ScrollingMovementMethod());
-        mContext= this.getApplicationContext();
+        mContext= MainActivity.this;
         initTts(mContext);
     }
 
@@ -147,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
                 VolleyLog.d(mytag, "Error: {0}" , error.getMessage());
             }
         });
-        Volley.newRequestQueue(getApplicationContext()).add(jsonObjReq);
+        Volley.newRequestQueue(mContext).add(jsonObjReq);
     }
 
     private String getqueryurl() {
@@ -168,6 +170,7 @@ public class MainActivity extends AppCompatActivity {
         // Instantiate the RequestQueue.
         RequestQueue queue = Volley.newRequestQueue(this);
         QueryRequest qrreq = new QueryRequest();
+        //英文真人發音授權內容ID
         String ContentID = "VOC0012";
         String url = qrreq.QueryHtml(result,ContentID);//VOC0012
         // Request a string response from the provided URL.
@@ -403,7 +406,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    private void initTts(Context context) {
+    public void initTts(Context context) {
         if (mTextToSpeech == null) {
             mTextToSpeech = new TextToSpeech(context, mTttsInitListener);
             mTextToSpeech.setOnUtteranceProgressListener(mTtsProgressListener);
@@ -417,6 +420,8 @@ public class MainActivity extends AppCompatActivity {
     private TextToSpeech.OnInitListener mTttsInitListener = new TextToSpeech.OnInitListener() {
         @Override
         public void onInit(int status) {
+
+
             switch (status) {
                 case TextToSpeech.SUCCESS:
                     Log.i(mytag, "TextToSpeech engine successfully started");
