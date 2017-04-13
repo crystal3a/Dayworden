@@ -62,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
     private TextToSpeech mTextToSpeech;
     private int mTtsQueueMode = TextToSpeech.QUEUE_FLUSH;
     private Context mContext;
-
+    private RequestQueue queue;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -149,7 +149,10 @@ public class MainActivity extends AppCompatActivity {
                 VolleyLog.d(mytag, "Error: {0}" , error.getMessage());
             }
         });
-        Volley.newRequestQueue(mContext).add(jsonObjReq);
+        // Instantiate the RequestQueue.
+        queue = Volley.newRequestQueue(mContext);
+        // Add the request to the RequestQueue.
+        queue.add(jsonObjReq);
     }
 
     private String getqueryurl() {
@@ -167,8 +170,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void saytext(String result)
     {
-        // Instantiate the RequestQueue.
-        RequestQueue queue = Volley.newRequestQueue(this);
         QueryRequest qrreq = new QueryRequest();
         //英文真人發音授權內容ID
         String ContentID = "VOC0012";
@@ -194,6 +195,8 @@ public class MainActivity extends AppCompatActivity {
                 VolleyLog.d("saytext", "Error: " + error.getMessage());
             }
         });
+        // Instantiate the RequestQueue.
+        queue = Volley.newRequestQueue(mContext);
         // Add the request to the RequestQueue.
         queue.add(stringRequest);
 
@@ -216,7 +219,6 @@ public class MainActivity extends AppCompatActivity {
                     mp.release();
                     String contentstr = StringFilter(textcontent.getText().toString());
                     Log.i(mytag,contentstr);
-                    //say(contentstr);
 
                     say(contentstr, new TextToSpeechCallback() {
                         @Override
@@ -529,7 +531,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         Log.d(mytag, "onPause");
-        //stopTextToSpeech();
+        stopTextToSpeech();
     }
 
     @Override
